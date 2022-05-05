@@ -1,0 +1,135 @@
+---
+title: "DS501 Case Study 3 - Census Data Reduction"
+author: "Austin Higgins"
+date: "5/8/2022"
+output: html_document
+runtime: shiny
+---
+
+```{r setup, include=FALSE}
+library(shiny)
+library(knitr)
+library(ggplot2)
+knitr::opts_chunk$set(echo = TRUE)
+
+census = read.csv("adult.data", header=FALSE)
+names(census) = c('age','jobclass','fnlwgt','education','educationlength','marriedstatus','occupation','relationship','race','sex','capgain','caploss','hoursworked','nativecountry','pay')
+```
+
+## Discussion
+
+The data set used in this RMarkdown-embedded Shiny app is census data from 1994 sourced from https://archive.ics.uci.edu/ml/datasets/Census+Income that was originally used to predict whether an individual's salary is above or below 50K per year.
+
+The processes and algorithms used here will be regression with a modular Shiny application the goal will not be singular, but to rather give a holistic view of all of the data together to try and get meaningful data visualization as a result.
+
+In this Shiny app I will primarily be looking at the relationships between different census metrics to find qualitative trends (upwards or downwards) in certain subsets of populations for arbitrary comparison. For example: Are older people working for the government generally more educated than younger? Does the same trend hold true for other groups? The most direct way to compare is to dynamically subset data and overlay two groups of people.
+
+Mathematically, regression (here, simple linear) takes a data set with one or more independent variables and one or more dependent variables and reduces the entire data set into a slope and intercept. This slope and intercept can be used qualitatively to understand bulk trends (as it is used for in this case study) or to provide a methodology to predict the dependent variable off of the independent variables for quantitative analysis.
+
+As the case study here deals with the general American population and not something similar to a technical process or relationship, the data is not as tightly packed. Loosely packed data like census results will tend to have large deviation from the regressed means, so regression is not useful for prediction. It is useful for general trends over an average of a population, but poor for predicting a single person's outlook. As this data does not have much quantitative value as described earlier, the equations are not included (or even useful) as it may guide the reader to try and use the information for purposes it is not suitable for. The data shown should help guide the reader's understanding of general trends in certain populations for specific census data relationships.
+
+## Instructions
+
+- Select the x- and y-axis variables of interest from the census data set
+- Select which category to subset the first cloud of data by, then select the sub-demographic
+- Select which category to subset the second cloud of data by, then select the sub-demographic
+
+The drop-down menus and plots will automatically update with the sub-demographics based on the category selected. By default, both clouds will be set to "sex - Male".
+
+```{r census, echo=FALSE}
+inputPanel(
+  selectInput("xaxis", label = "X Variable:",choices = c('educationlength','age','capgain','caploss','hoursworked'), selected = "age"),
+  
+  selectInput("yaxis", label = "Y Variable:",choices = c('educationlength','age','capgain','caploss','hoursworked'), selected = "hoursworked"),
+  
+  '','',
+  
+  selectInput("cat1", label = "Category 1:",choices = c('jobclass','occupation','education','marriedstatus','race','sex'),selected = 'sex'),
+  
+  selectInput("sel1", label = "Demographic 1:", choices = unique(census$sex),selected = 'Male'),
+  
+  selectInput("cat2", label = "Category 2:",choices = c('jobclass','occupation','education','marriedstatus','race','sex'),selected = 'sex'),
+  
+  selectInput("sel2", label = "Demographic 2:", choices = unique(census$sex),selected = 'Female')
+)
+
+# Dynamically update the selection drop down based on the category drop down
+observe({
+  updateSelectInput(session, inputId="sel1", choices=unique(census[,input$cat1]))
+})
+
+observe({
+  updateSelectInput(session, inputId="sel2", choices=unique(census[,input$cat2]))
+})
+
+# Scatter plot data with trendline
+renderPlot({
+  higginsPlot(input$xaxis,input$yaxis,input$cat1,input$sel1,input$cat2,input$sel2)
+})
+
+```
+
+## Results and Conclusions
+
+Using the above Shiny application, certain relationships can be determined. By making the x-axis "age" and y-axis "hoursworked" and sorting by sex with male and female, the following graph is obtained:
+
+```{r echo = F, eval = T, message = F}
+
+# Define plotting function for examples
+# Logical indices for both lines to plot
+higginsPlot <- function(xaxis,yaxis,cat1,sel1,cat2,sel2){
+ind1f = census[,cat1] == sel1
+ind2f = census[,cat2] == sel2
+
+ggplot(census[ind1f,],aes_string(xaxis,yaxis)) + 
+
+# Set 1 scatter
+geom_point(alpha = 0.5, color = 'blue') +
+
+# Set 2 scatter
+geom_point(data = census[ind2f,],aes_string(xaxis,yaxis),alpha = 0.5, color = 'red') +
+
+# Set 1 regression
+geom_smooth(method = lm, size = 2.5, color = "black", se = FALSE) + 
+geom_smooth(method='lm', color = 'blue')  +
+
+# Get 2 regression
+geom_smooth(data = census[ind2f,],aes_string(xaxis,yaxis),method = lm, size = 2.5, color = "black", se = FALSE) +
+geom_smooth(data = census[ind2f,],aes_string(xaxis,yaxis),method='lm', color = 'red') +
+
+ggtitle(paste(sel1,'(Blue) and',sel2,'(Red) Trends for',yaxis,'vs.',xaxis),) +
+theme(plot.title = element_text(hjust = 0.5,size = 12)) 
+}
+
+higginsPlot('age','hoursworked','sex',' Male','sex',' Female')
+```
+
+From this, it is apparent that males on average work more hours per week than females at all ages, but females increase hours worked as they get older at a rate higher than males.
+
+What about the same comparison, but comparing state and federal employees?
+
+```{r echo = F, eval = T, message = F}
+higginsPlot('age','hoursworked','jobclass',' State-gov','jobclass',' Federal-gov')
+```
+
+Interestingly, the average number of hours worked per week for federal government employees is nearly 40, no matter the age! When compared to state government employees, it is around the same, but younger state government employees work less hours than federal, but older state government employees work more than federal.
+
+What about married versus unmarried hours worked versus age? The expectation is that those never married will work more than those that are married when older, as there are fewer things outside of work taking up significant time. Married folks will generally spend more time with family when they get older (or retire!).
+
+```{r echo = F, eval = T, message = F}
+higginsPlot('age','hoursworked','marriedstatus',' Never-married','marriedstatus',' Married-civ-spouse')
+```
+
+Just as predicted, those never married increase in hours worked per week as they age, while those married do the opposite. Ont thing that is hard to determine in the graphs as-is if the effect of those under the typical marriage age, as they will skew the lower age range down. A better comparison for further analysis would have a lower age bound where you would only compare married vs unmarried in marriage-eligible individuals. As for the married dataset, it trends downwards as they age, which does align with the expectation.
+
+Exploring outside of the age versus hours worked data set, one more example is tested. Here, the comparison will be the number of hours worked per week versus the number of years of school completed, comparing those working for private companies and those who are self employed.
+
+```{r echo = F, eval = T, message = F}
+higginsPlot('educationlength','hoursworked','jobclass',' Private','jobclass',' Self-emp-inc')
+```
+
+Very interestingly (and unsurprisingly), those who are self employed work on average about 6-8 hours more per week than those working for private companies. In either case, the more educated you are (in terms of years), the more you tend to work per week. This may be due to there being fever people with jobs that schedule specific hours (e.g. shifts up to 40 total hours, and no more) and more salary jobs when one is more educated. Salaried jobs tend to require a more variable number of hours worked past the standard 40.
+
+## Final Notes
+
+Using bulk human-based data in a qualitative way like this can help one understand the trends of an entire population, and which subsets of the population may be better targeted for various products. Since humans are innately un-mathematical, knowing only a few data points provides little information about the entirety of a population. By determining a desired relationship prior to data analysis, certain subsets of the population may support or refute that desired outcome, which can provide initial insight on where to spend more time. After an assessment like this, additional surveys that target more quantitative information about the desired demographic can help determine conclusion to aid in the business needs. If increased sales in certain demographics is the desire, knowing non-census data like "cash flow every month" and "money in savings account" will let the business calculate hard numbers to support or refute their business needs.
